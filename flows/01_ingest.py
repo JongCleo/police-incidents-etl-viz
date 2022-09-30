@@ -24,7 +24,7 @@ def get_current_offset() -> int:
 def extract(offset: int) -> pd.DataFrame:
 
     OFFSET = offset
-    LIMIT = 20000
+    LIMIT = 50000
     # id for the Police Dpt Incident Reports Data Set
     # https://dev.socrata.com/foundry/data.sfgov.org/wg3w-h783
     POLICE_INCIDENTS_DATA_SET_ID = "wg3w-h783"
