@@ -1,14 +1,17 @@
 import csv
+import imp
 import os
+import sys
 
 import pandas as pd
 from prefect import flow, task
 from sodapy import Socrata
+from sqlalchemy import create_engine
+
+cwd = os.path.abspath(os.path.dirname(__file__))
+# ip = imp.load_source("models", os.path.join(cwd, "../models/incident_parts.py"))
 
 client = Socrata("data.sfgov.org", None)
-# id for the Police Dpt Incident Reports Data Set
-# https://dev.socrata.com/foundry/data.sfgov.org/wg3w-h783
-cwd = os.path.abspath(os.path.dirname(__file__))
 
 
 @task
@@ -19,6 +22,8 @@ def extract() -> pd.DataFrame:
 
     OFFSET = int(text)
     LIMIT = 100
+    # id for the Police Dpt Incident Reports Data Set
+    # https://dev.socrata.com/foundry/data.sfgov.org/wg3w-h783
     POLICE_INCIDENTS_DATA_SET_ID = "wg3w-h783"
     SORT_KEY = "incident_datetime"
 
@@ -57,19 +62,37 @@ def add_minor_major_col(data: pd.DataFrame) -> pd.DataFrame:
 
 
 @task
-def remove_out_of_sf():
-    pass
+def remove_out_of_sf(data: pd.DataFrame) -> pd.DataFrame:
+    return data[data["police_district"].apply(lambda x: str(x) != "Out of SF")]
 
 
 @task
-def load():
+def make_compatible_with_sqlite(data: pd.DataFrame) -> pd.DataFrame:
+    data["filed_online"] = data["filed_online"].astype("str")
+    data["is_minor"] = data["is_minor"].astype("str")
+    data = data.drop("point", axis=1)
+    return data
+
+
+@task
+def load(data: pd.DataFrame) -> None:
+    dbengine = create_engine("sqlite:///demo.db")
+    # ip.IncidentParts.__table__.create(bind=engine, checkfirst=True)
+    data.to_sql("incident_parts", dbengine, if_exists="append", index=False)
+
+
+@task
+def update_offset() -> None:
     pass
 
 
 @flow
 def ingest():
     data = extract()
-    add_minor_major_col(data)
+    minor_major_col_added = add_minor_major_col(data)
+    invalids_removed = remove_out_of_sf(minor_major_col_added)
+    compatible_data = make_compatible_with_sqlite(invalids_removed)
+    load(compatible_data)
 
 
 ingest()
