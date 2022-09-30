@@ -1,6 +1,9 @@
 import csv
+import datetime
 
 from prefect import flow, task
+from prefect.deployments import Deployment
+from prefect.task_runners import SequentialTaskRunner
 
 
 @task
@@ -24,19 +27,22 @@ def load(data, path):
         csv_writer.writerow(data)
 
 
-@flow
-def flow_try():
+@flow(name="first flow", description="basic shit", task_runner=SequentialTaskRunner())
+# the task_runner can be concurrent or sequential
+def flow_try(filename):
     # should note that Task results are caches in memory
     # and persisted to PREFECT_LOCAL_STORAGE_PATH
 
-    data = extract("values.csv")
+    data = extract(filename)
     # think of the return value as the prefect task, not as the return value itself
     # as proof, try doing
     # print(data)
 
     tranformed_data = transform(data)
-    result = load(tranformed_data, "transformed_values.csv")
+    result = load(tranformed_data, filename)
     # flow.visualize()
 
 
-flow_try()
+# when creating flows from the Prefect Orion API, must use named parameters
+# cannot be positional
+flow_try(filename="values.csv")
